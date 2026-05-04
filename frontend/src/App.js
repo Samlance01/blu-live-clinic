@@ -35,8 +35,11 @@ function App() {
     try {
       const res = await axios.get(`${API}/patients`);
       setPatients(res.data);
-    } catch (err) { console.error(err); } 
-    finally { setLoading(false); }
+    } catch (err) { 
+      console.error("LOAD DATA ERROR:", err); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   useEffect(() => {
@@ -52,7 +55,7 @@ function App() {
 
   // --- UPDATED MEDICAL REPORT EXPORT ---
   const exportPatientReceipt = (p) => {
-    const date = new Date().toLocaleDateString('en-GB'); // Format: DD/MM/YYYY
+    const date = new Date().toLocaleDateString('en-GB');
     const reportTemplate = `
 ==========================================
         BLUCLINIC MEDICAL REPORT
@@ -98,11 +101,19 @@ This is a computer-generated medical record.
   const resetPassword = async (id) => {
     const newPass = prompt("Enter new password for patient:");
     if (!newPass) return;
+
     try {
-      await axios.put(`${API}/patients/${id}`, { password: newPass });
+      await axios.put(`${API}/reset-password`, {
+        patientId: id,
+        newPassword: newPass
+      });
+
       showToast("Password Reset Successfully");
       loadData(true);
-    } catch (err) { showToast("Reset Failed", "danger"); }
+    } catch (err) { 
+      console.error("RESET PASSWORD ERROR:", err);
+      showToast("Reset Failed", "danger"); 
+    }
   };
 
   const handleRegister = async (e) => {
@@ -111,18 +122,56 @@ This is a computer-generated medical record.
       await axios.post(`${API}/register`, regData);
       showToast("Consultation Submitted!");
       setView('login');
-    } catch (err) { showToast("Error connecting to server", "danger"); }
+    } catch (err) { 
+      console.error("REGISTER ERROR:", err);
+      showToast("Error connecting to server", "danger"); 
+    }
   };
 
-  const handleLogin = () => {
-    const name = document.getElementById('l-name').value;
+  const handleLogin = async () => {
+    const name = document.getElementById('l-name').value.trim();
     const pass = document.getElementById('l-pass').value;
-    if (name === 'admin' && pass === 'p@ssw0rd') return setUser({ name: 'admin', role: 'admin' });
+
+    setLoginErr("");
+
+    if (!name || !pass) {
+      setLoginErr("Please enter username and password");
+      return;
+    }
+
+    if (name === 'admin' && pass === 'p@ssw0rd') {
+      setUser({ name: 'admin', role: 'admin' });
+      setLoginErr("");
+      return;
+    }
+
     const doctors = ['Jonah Irande', 'Oluwatosin Daniel', 'Faith Bitrus'];
-    if (doctors.includes(name) && pass === 'p@ssw0rd') return setUser({ name: name, role: 'doctor' });
-    const found = patients.find(p => p.username === name && p.password === pass);
-    if (found) { setUser({ name: found.username, role: 'patient' }); setLoginErr(""); } 
-    else { setLoginErr("Invalid Credentials"); }
+
+    if (doctors.includes(name) && pass === 'p@ssw0rd') {
+      setUser({ name: name, role: 'doctor' });
+      setLoginErr("");
+      return;
+    }
+
+    try {
+      const res = await axios.post(`${API}/login`, {
+        username: name,
+        password: pass
+      });
+
+      const loggedInUser = res.data.user;
+
+      setUser({
+        name: loggedInUser.username,
+        role: loggedInUser.role
+      });
+
+      setLoginErr("");
+
+    } catch (err) {
+      console.error("LOGIN ERROR:", err);
+      setLoginErr("Invalid Credentials");
+    }
   };
 
   if (loading) return <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: theme.bg }}><div className="spinner"></div><style>{`.spinner{width:40px;height:40px;border:4px solid #ddd;border-top-color:${theme.primary};border-radius:50%;animation:s 1s linear infinite}@keyframes s{to{transform:rotate(360deg)}}`}</style></div>;
@@ -176,11 +225,11 @@ This is a computer-generated medical record.
               <input placeholder="Full Name" required style={{ padding: 14, borderRadius: 12, border: '1px solid #ddd' }} onChange={e => setRegData({...regData, username: e.target.value})} />
               <input type="password" placeholder="Password" required style={{ padding: 14, borderRadius: 12, border: '1px solid #ddd' }} onChange={e => setRegData({...regData, password: e.target.value})} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15 }}>
-                <select style={{ padding: 14, borderRadius: 12, border: '1px solid #ddd' }} onChange={e => setRegData({...regData, age: e.target.value})}>
+                <select style={{ padding: 14, borderRadius: 12, border: '1px solid #ddd' }} value={regData.age} onChange={e => setRegData({...regData, age: e.target.value})}>
                   <option value="Infant (0-2)">Infant (0-2)</option>
                   <option value="Child (3-12)">Child (3-12)</option>
                   <option value="Teenager (13-19)">Teenager (13-19)</option>
-                  <option value="Adult (20-64)" selected>Adult (20-64)</option>
+                  <option value="Adult (20-64)">Adult (20-64)</option>
                   <option value="Senior (65+)">Senior (65+)</option>
                 </select>
                 <input placeholder="Location" required style={{ padding: 14, borderRadius: 12, border: '1px solid #ddd' }} onChange={e => setRegData({...regData, location: e.target.value})} />
@@ -199,6 +248,13 @@ This is a computer-generated medical record.
                 <input id="l-name" placeholder="Name" style={{ padding: 14, borderRadius: 12, border: '1px solid #ddd' }} />
                 <input id="l-pass" type="password" placeholder="Password" style={{ padding: 14, borderRadius: 12, border: '1px solid #ddd' }} />
                 <button onClick={handleLogin} style={{ padding: 16, background: theme.primary, color: 'white', border: 'none', borderRadius: 12, fontWeight: '700' }}>Login</button>
+
+                {loginErr && (
+                  <p style={{ color: theme.danger, textAlign: 'center', margin: 0 }}>
+                    {loginErr}
+                  </p>
+                )}
+
                 <p onClick={() => setView('landing')} style={{ textAlign: 'center', color: theme.secondary, cursor: 'pointer' }}>Back</p>
             </div>
           </div>
